@@ -265,7 +265,6 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           basic_salary: number
-          column_mappings: Json | null
           company_address: string
           company_name: string
           created_at: string
@@ -283,7 +282,6 @@ export type Database = {
           insurance_deduction: number
           medical_allowance: number
           net_salary: number
-          original_data: Json | null
           os_hours: number | null
           other_allowances: number
           other_deductions: number
@@ -308,7 +306,6 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           basic_salary?: number
-          column_mappings?: Json | null
           company_address?: string
           company_name?: string
           created_at?: string
@@ -326,7 +323,6 @@ export type Database = {
           insurance_deduction?: number
           medical_allowance?: number
           net_salary?: number
-          original_data?: Json | null
           os_hours?: number | null
           other_allowances?: number
           other_deductions?: number
@@ -351,7 +347,6 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           basic_salary?: number
-          column_mappings?: Json | null
           company_address?: string
           company_name?: string
           created_at?: string
@@ -369,7 +364,6 @@ export type Database = {
           insurance_deduction?: number
           medical_allowance?: number
           net_salary?: number
-          original_data?: Json | null
           os_hours?: number | null
           other_allowances?: number
           other_deductions?: number
