@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Download, FileText, Search, Users, DollarSign, Building, Eye } from 'lucide-react';
+import { Calendar, Download, FileText, Search, Users, DollarSign, Building, Eye, RefreshCw } from 'lucide-react';
 import { Payslip } from '@/types/payslip';
 import { MonthlyPayslipSummary } from '@/types/bulk';
+import { fixAllZeroNetSalaryPayslips } from '@/utils/salaryCalculations';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -27,7 +28,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [isFixingPayslips, setIsFixingPayslips] = useState(false);
 
   // Get available months from payslips
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -45,7 +46,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
 
   useEffect(() => {
     filterPayslips();
-  }, [payslips, searchTerm, departmentFilter, statusFilter]);
+  }, [payslips, searchTerm, departmentFilter]);
 
   const fetchAvailableMonths = async () => {
     try {
@@ -129,6 +130,36 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
     setFilteredPayslips(filtered);
   };
 
+  const fixZeroNetSalaries = async () => {
+    setIsFixingPayslips(true);
+    try {
+      const result = await fixAllZeroNetSalaryPayslips();
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Fixed ${result.count} payslips with zero net salary`,
+        });
+        // Refresh the data
+        fetchMonthlyPayslips();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fix zero net salary payslips",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error fixing payslips:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fix zero net salary payslips",
+        variant: "destructive"
+      });
+    } finally {
+      setIsFixingPayslips(false);
+    }
+  };
+
   const generateUnifiedPDF = async () => {
     if (filteredPayslips.length === 0) {
       toast({
@@ -182,8 +213,10 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         });
       }
 
-      // Individual Payslips
-      filteredPayslips.forEach((payslip, index) => {
+      // Individual Payslips (sorted by employee name)
+      const sortedPayslips = [...filteredPayslips].sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+      
+      sortedPayslips.forEach((payslip, index) => {
         doc.addPage();
         
         // Header
@@ -203,6 +236,16 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         doc.text(`Designation: ${payslip.designation}`, 20, empDetailsY + 14);
         doc.text(`Department: ${payslip.department}`, 20, empDetailsY + 21);
 
+        // Calculate proper net salary if it's 0
+        const grossSalary = Number(payslip.basic_salary || 0) + Number(payslip.hra || 0) + 
+                           Number(payslip.transport_allowance || 0) + Number(payslip.medical_allowance || 0) + 
+                           Number(payslip.other_allowances || 0) + Number(payslip.performance_allowance || 0);
+        
+        const totalDeductions = Number(payslip.pf_deduction || 0) + Number(payslip.tax_deduction || 0) + 
+                               Number(payslip.insurance_deduction || 0) + Number(payslip.other_deductions || 0);
+        
+        const actualNetSalary = payslip.net_salary > 0 ? payslip.net_salary : (grossSalary - totalDeductions);
+
         // Earnings Table
         const earningsData = [
           ['Basic Salary', `₹${Number(payslip.basic_salary || 0).toLocaleString()}`],
@@ -211,6 +254,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
           ['Medical Allowance', `₹${Number(payslip.medical_allowance || 0).toLocaleString()}`],
           ['Performance Allowance', `₹${Number(payslip.performance_allowance || 0).toLocaleString()}`],
           ['Other Allowances', `₹${Number(payslip.other_allowances || 0).toLocaleString()}`],
+          ['GROSS TOTAL', `₹${grossSalary.toLocaleString()}`],
         ];
 
         autoTable(doc, {
@@ -230,6 +274,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
           ['Insurance', `₹${Number(payslip.insurance_deduction || 0).toLocaleString()}`],
           ['Other Deductions', `₹${Number(payslip.other_deductions || 0).toLocaleString()}`],
           ['Service Charge', `₹${Number(payslip.service_charge || 0).toLocaleString()}`],
+          ['TOTAL DEDUCTIONS', `₹${totalDeductions.toLocaleString()}`],
         ];
 
         autoTable(doc, {
@@ -246,7 +291,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         const finalY = (doc as any).lastAutoTable.finalY + 20;
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
-        doc.text(`NET SALARY: ₹${Number(payslip.net_salary).toLocaleString()}`, 105, finalY, { align: 'center' });
+        doc.text(`NET SALARY: ₹${actualNetSalary.toLocaleString()}`, 105, finalY, { align: 'center' });
 
         // Bank Details (if available)
         if (payslip.bank_name) {
@@ -281,6 +326,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
   };
 
   const uniqueDepartments = [...new Set(payslips.map(p => p.department))];
+  const zeroNetSalaryCount = payslips.filter(p => Number(p.net_salary) === 0).length;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -337,6 +383,18 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
                 </SelectContent>
               </Select>
             </div>
+
+            {zeroNetSalaryCount > 0 && (
+              <Button 
+                onClick={fixZeroNetSalaries}
+                disabled={isFixingPayslips}
+                variant="outline"
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isFixingPayslips ? 'animate-spin' : ''}`} />
+                Fix Zero Salaries ({zeroNetSalaryCount})
+              </Button>
+            )}
 
             <Button 
               onClick={generateUnifiedPDF}
@@ -406,6 +464,11 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
             <CardHeader>
               <CardTitle>
                 Payslips for {selectedMonth} ({filteredPayslips.length})
+                {zeroNetSalaryCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {zeroNetSalaryCount} with zero salary
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -428,23 +491,33 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPayslips.map((payslip) => (
-                      <TableRow key={payslip.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{payslip.employee_name}</div>
-                            <div className="text-xs text-slate-500">{payslip.employee_code || payslip.employee_id}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{payslip.department}</TableCell>
-                        <TableCell>{payslip.designation}</TableCell>
-                        <TableCell>₹{Number(payslip.total_earning_gross || 0).toLocaleString()}</TableCell>
-                        <TableCell className="font-medium">₹{Number(payslip.net_salary).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant="default">Processed</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredPayslips.map((payslip) => {
+                      const netSalary = Number(payslip.net_salary);
+                      const isZero = netSalary === 0;
+                      
+                      return (
+                        <TableRow key={payslip.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{payslip.employee_name}</div>
+                              <div className="text-xs text-slate-500">{payslip.employee_code || payslip.employee_id}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{payslip.department}</TableCell>
+                          <TableCell>{payslip.designation}</TableCell>
+                          <TableCell>₹{Number(payslip.total_earning_gross || 0).toLocaleString()}</TableCell>
+                          <TableCell className={`font-medium ${isZero ? 'text-red-600' : ''}`}>
+                            ₹{netSalary.toLocaleString()}
+                            {isZero && <Badge variant="destructive" className="ml-2 text-xs">Zero</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={isZero ? "destructive" : "default"}>
+                              {isZero ? "Needs Fix" : "Processed"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
