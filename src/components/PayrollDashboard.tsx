@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
-import { BarChart3, FileText, Upload, Plus } from 'lucide-react';
+import { BarChart3, FileText, Upload, Plus, Users, Calendar } from 'lucide-react';
 import PayslipGenerator from './PayslipGenerator';
 import BulkImportUpload from './BulkImportUpload';
 import PayslipManagement from './PayslipManagement';
+import BulkAllowancesManager from './BulkAllowancesManager';
+import MonthlyPayslipManager from './MonthlyPayslipManager';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import BulkPayrollManager from './BulkPayrollManager';
@@ -34,6 +36,8 @@ const DashboardCard: React.FC<DashboardCardProps> = ({ title, value, description
 const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ payslips = [] }) => {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [showBulkManager, setShowBulkManager] = useState(false);
+  const [showBulkAllowances, setShowBulkAllowances] = useState(false);
+  const [showMonthlyManager, setShowMonthlyManager] = useState(false);
   
   // Calculate dashboard metrics from payslips
   const totalEmployees = payslips.length;
@@ -61,9 +65,21 @@ const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ payslips = [] }) =>
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Payroll Dashboard
-          </h1>
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Payroll Dashboard
+            </h1>
+            <div className="flex gap-3">
+              <Button onClick={() => setShowBulkAllowances(true)} variant="outline">
+                <Users className="h-4 w-4 mr-2" />
+                Bulk Allowances
+              </Button>
+              <Button onClick={() => setShowMonthlyManager(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Calendar className="h-4 w-4 mr-2" />
+                Monthly Manager
+              </Button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -124,9 +140,17 @@ const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ payslips = [] }) =>
         </div>
       </div>
 
-      {/* Bulk Manager Modal */}
+      {/* Modals */}
       {showBulkManager && (
         <BulkPayrollManager onClose={handleCloseBulkManager} onImportComplete={refreshData} />
+      )}
+
+      {showBulkAllowances && (
+        <BulkAllowancesManager onClose={() => setShowBulkAllowances(false)} />
+      )}
+
+      {showMonthlyManager && (
+        <MonthlyPayslipManager onClose={() => setShowMonthlyManager(false)} />
       )}
     </div>
   );

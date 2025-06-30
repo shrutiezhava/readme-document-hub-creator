@@ -9,6 +9,72 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bulk_allowances: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          is_percentage: boolean
+          month_year: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          month_year: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          month_year?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bulk_deductions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          is_percentage: boolean
+          month_year: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          month_year: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          month_year?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string | null
@@ -190,6 +256,76 @@ export type Database = {
           },
         ]
       }
+      employee_bulk_allowances: {
+        Row: {
+          bulk_allowance_id: string | null
+          created_at: string
+          custom_amount: number | null
+          employee_id: string
+          id: string
+          is_applied: boolean
+        }
+        Insert: {
+          bulk_allowance_id?: string | null
+          created_at?: string
+          custom_amount?: number | null
+          employee_id: string
+          id?: string
+          is_applied?: boolean
+        }
+        Update: {
+          bulk_allowance_id?: string | null
+          created_at?: string
+          custom_amount?: number | null
+          employee_id?: string
+          id?: string
+          is_applied?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_bulk_allowances_bulk_allowance_id_fkey"
+            columns: ["bulk_allowance_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_allowances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_bulk_deductions: {
+        Row: {
+          bulk_deduction_id: string | null
+          created_at: string
+          custom_amount: number | null
+          employee_id: string
+          id: string
+          is_applied: boolean
+        }
+        Insert: {
+          bulk_deduction_id?: string | null
+          created_at?: string
+          custom_amount?: number | null
+          employee_id: string
+          id?: string
+          is_applied?: boolean
+        }
+        Update: {
+          bulk_deduction_id?: string | null
+          created_at?: string
+          custom_amount?: number | null
+          employee_id?: string
+          id?: string
+          is_applied?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_bulk_deductions_bulk_deduction_id_fkey"
+            columns: ["bulk_deduction_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_deductions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_data: {
         Row: {
           created_at: string
@@ -265,6 +401,7 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           basic_salary: number
+          column_mappings: Json | null
           company_address: string
           company_name: string
           created_at: string
@@ -282,6 +419,7 @@ export type Database = {
           insurance_deduction: number
           medical_allowance: number
           net_salary: number
+          original_data: Json | null
           os_hours: number | null
           other_allowances: number
           other_deductions: number
@@ -306,6 +444,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           basic_salary?: number
+          column_mappings?: Json | null
           company_address?: string
           company_name?: string
           created_at?: string
@@ -323,6 +462,7 @@ export type Database = {
           insurance_deduction?: number
           medical_allowance?: number
           net_salary?: number
+          original_data?: Json | null
           os_hours?: number | null
           other_allowances?: number
           other_deductions?: number
@@ -347,6 +487,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           basic_salary?: number
+          column_mappings?: Json | null
           company_address?: string
           company_name?: string
           created_at?: string
@@ -364,6 +505,7 @@ export type Database = {
           insurance_deduction?: number
           medical_allowance?: number
           net_salary?: number
+          original_data?: Json | null
           os_hours?: number | null
           other_allowances?: number
           other_deductions?: number
@@ -434,6 +576,18 @@ export type Database = {
       }
     }
     Views: {
+      monthly_payslip_summary: {
+        Row: {
+          average_net_salary: number | null
+          departments_count: number | null
+          max_net_salary: number | null
+          min_net_salary: number | null
+          pay_period: string | null
+          total_net_salary: number | null
+          total_payslips: number | null
+        }
+        Relationships: []
+      }
       payroll_summary: {
         Row: {
           actual_records: number | null
