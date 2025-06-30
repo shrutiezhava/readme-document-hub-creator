@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,6 +79,8 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         .order('employee_name');
 
       if (error) throw error;
+      
+      console.log(`Fetched ${data?.length || 0} payslips for ${selectedMonth}`);
       setPayslips(data || []);
     } catch (error) {
       console.error('Error fetching monthly payslips:', error);
@@ -141,6 +142,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         });
         // Refresh the data
         fetchMonthlyPayslips();
+        fetchMonthlySummary();
       } else {
         toast({
           title: "Error",
@@ -158,6 +160,32 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
     } finally {
       setIsFixingPayslips(false);
     }
+  };
+
+  const calculateActualNetSalary = (payslip: Payslip): number => {
+    // Calculate proper gross salary including all allowances
+    const grossSalary = Number(payslip.basic_salary || 0) + 
+                       Number(payslip.hra || 0) + 
+                       Number(payslip.transport_allowance || 0) + 
+                       Number(payslip.medical_allowance || 0) + 
+                       Number(payslip.other_allowances || 0) + 
+                       Number(payslip.performance_allowance || 0) +
+                       Number(payslip.earned_basic || 0) +
+                       Number(payslip.earned_hra || 0) +
+                       Number(payslip.earned_os || 0) +
+                       Number(payslip.other_earning || 0) +
+                       Number(payslip.skill_allowance || 0) +
+                       Number(payslip.attendance_incentive || 0);
+    
+    // Calculate total deductions
+    const totalDeductions = Number(payslip.pf_deduction || 0) + 
+                           Number(payslip.tax_deduction || 0) + 
+                           Number(payslip.insurance_deduction || 0) + 
+                           Number(payslip.other_deductions || 0) +
+                           Number(payslip.service_charge || 0);
+    
+    // Return calculated net salary
+    return grossSalary - totalDeductions;
   };
 
   const generateUnifiedPDF = async () => {
@@ -236,15 +264,28 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
         doc.text(`Designation: ${payslip.designation}`, 20, empDetailsY + 14);
         doc.text(`Department: ${payslip.department}`, 20, empDetailsY + 21);
 
-        // Calculate proper net salary if it's 0
-        const grossSalary = Number(payslip.basic_salary || 0) + Number(payslip.hra || 0) + 
-                           Number(payslip.transport_allowance || 0) + Number(payslip.medical_allowance || 0) + 
-                           Number(payslip.other_allowances || 0) + Number(payslip.performance_allowance || 0);
+        // Calculate actual net salary if the stored one is zero
+        const actualNetSalary = Number(payslip.net_salary) > 0 ? Number(payslip.net_salary) : calculateActualNetSalary(payslip);
         
-        const totalDeductions = Number(payslip.pf_deduction || 0) + Number(payslip.tax_deduction || 0) + 
-                               Number(payslip.insurance_deduction || 0) + Number(payslip.other_deductions || 0);
+        // Calculate proper gross salary including all allowances
+        const grossSalary = Number(payslip.basic_salary || 0) + 
+                           Number(payslip.hra || 0) + 
+                           Number(payslip.transport_allowance || 0) + 
+                           Number(payslip.medical_allowance || 0) + 
+                           Number(payslip.other_allowances || 0) + 
+                           Number(payslip.performance_allowance || 0) +
+                           Number(payslip.earned_basic || 0) +
+                           Number(payslip.earned_hra || 0) +
+                           Number(payslip.earned_os || 0) +
+                           Number(payslip.other_earning || 0) +
+                           Number(payslip.skill_allowance || 0) +
+                           Number(payslip.attendance_incentive || 0);
         
-        const actualNetSalary = payslip.net_salary > 0 ? payslip.net_salary : (grossSalary - totalDeductions);
+        const totalDeductions = Number(payslip.pf_deduction || 0) + 
+                               Number(payslip.tax_deduction || 0) + 
+                               Number(payslip.insurance_deduction || 0) + 
+                               Number(payslip.other_deductions || 0) +
+                               Number(payslip.service_charge || 0);
 
         // Earnings Table
         const earningsData = [
@@ -326,7 +367,7 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
   };
 
   const uniqueDepartments = [...new Set(payslips.map(p => p.department))];
-  const zeroNetSalaryCount = payslips.filter(p => Number(p.net_salary) === 0).length;
+  const zeroNetSalaryCount = payslips.filter(p => Number(p.net_salary) === 0 || p.net_salary === null).length;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -464,9 +505,9 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
             <CardHeader>
               <CardTitle>
                 Payslips for {selectedMonth} ({filteredPayslips.length})
-                {zeroNetSalaryCount > 0 && (
+                {payslips.filter(p => Number(p.net_salary) === 0 || p.net_salary === null).length > 0 && (
                   <Badge variant="destructive" className="ml-2">
-                    {zeroNetSalaryCount} with zero salary
+                    {payslips.filter(p => Number(p.net_salary) === 0 || p.net_salary === null).length} with zero salary
                   </Badge>
                 )}
               </CardTitle>
@@ -492,8 +533,9 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
                   </TableHeader>
                   <TableBody>
                     {filteredPayslips.map((payslip) => {
-                      const netSalary = Number(payslip.net_salary);
-                      const isZero = netSalary === 0;
+                      const storedNetSalary = Number(payslip.net_salary || 0);
+                      const actualNetSalary = storedNetSalary > 0 ? storedNetSalary : calculateActualNetSalary(payslip);
+                      const isZero = storedNetSalary === 0 || payslip.net_salary === null;
                       
                       return (
                         <TableRow key={payslip.id}>
@@ -507,8 +549,8 @@ const MonthlyPayslipManager: React.FC<MonthlyPayslipManagerProps> = ({ onClose }
                           <TableCell>{payslip.designation}</TableCell>
                           <TableCell>₹{Number(payslip.total_earning_gross || 0).toLocaleString()}</TableCell>
                           <TableCell className={`font-medium ${isZero ? 'text-red-600' : ''}`}>
-                            ₹{netSalary.toLocaleString()}
-                            {isZero && <Badge variant="destructive" className="ml-2 text-xs">Zero</Badge>}
+                            ₹{actualNetSalary.toLocaleString()}
+                            {isZero && <Badge variant="destructive" className="ml-2 text-xs">Needs Fix</Badge>}
                           </TableCell>
                           <TableCell>
                             <Badge variant={isZero ? "destructive" : "default"}>

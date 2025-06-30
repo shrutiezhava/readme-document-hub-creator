@@ -134,7 +134,7 @@ export const calculateNetSalary = async (
 
   } catch (error) {
     console.error('Error calculating net salary:', error);
-    // Fallback calculation without bulk items
+    // Fallback calculation without bulk items - NEVER return 0 for net salary
     const totalAllowances = allowances.hra + allowances.transport + allowances.medical + 
                            allowances.performance + allowances.other;
     const grossSalary = basicSalary + totalAllowances;
@@ -179,17 +179,33 @@ export const recalculatePayslipNetSalary = async (payslipId: string) => {
       return false;
     }
 
-    // Calculate proper net salary
-    const grossSalary = Number(payslip.basic_salary) + Number(payslip.hra) + 
-                       Number(payslip.transport_allowance) + Number(payslip.medical_allowance) + 
-                       Number(payslip.other_allowances) + Number(payslip.performance_allowance || 0);
+    // Calculate proper gross salary including all allowances
+    const grossSalary = Number(payslip.basic_salary || 0) + 
+                       Number(payslip.hra || 0) + 
+                       Number(payslip.transport_allowance || 0) + 
+                       Number(payslip.medical_allowance || 0) + 
+                       Number(payslip.other_allowances || 0) + 
+                       Number(payslip.performance_allowance || 0) +
+                       Number(payslip.earned_basic || 0) +
+                       Number(payslip.earned_hra || 0) +
+                       Number(payslip.earned_os || 0) +
+                       Number(payslip.other_earning || 0) +
+                       Number(payslip.skill_allowance || 0) +
+                       Number(payslip.attendance_incentive || 0);
     
-    const totalDeductions = Number(payslip.pf_deduction) + Number(payslip.tax_deduction) + 
-                           Number(payslip.insurance_deduction) + Number(payslip.other_deductions);
+    // Calculate total deductions
+    const totalDeductions = Number(payslip.pf_deduction || 0) + 
+                           Number(payslip.tax_deduction || 0) + 
+                           Number(payslip.insurance_deduction || 0) + 
+                           Number(payslip.other_deductions || 0) +
+                           Number(payslip.service_charge || 0);
     
+    // Calculate net salary - this should NEVER be hardcoded to 0
     const netSalary = grossSalary - totalDeductions;
 
-    // Update the payslip
+    console.log(`Recalculating payslip ${payslipId}: Gross=${grossSalary}, Deductions=${totalDeductions}, Net=${netSalary}`);
+
+    // Update the payslip with calculated values
     const { error: updateError } = await supabase
       .from('payslips')
       .update({ 
@@ -213,15 +229,18 @@ export const recalculatePayslipNetSalary = async (payslipId: string) => {
 // Function to bulk fix all payslips with zero net salary
 export const fixAllZeroNetSalaryPayslips = async () => {
   try {
+    // Fetch payslips with zero OR null net salary
     const { data: payslips, error } = await supabase
       .from('payslips')
       .select('*')
-      .eq('net_salary', 0);
+      .or('net_salary.eq.0,net_salary.is.null');
 
     if (error) {
       console.error('Error fetching zero net salary payslips:', error);
       return { success: false, count: 0 };
     }
+
+    console.log(`Found ${payslips?.length || 0} payslips with zero/null net salary`);
 
     let fixedCount = 0;
     for (const payslip of payslips || []) {
@@ -229,6 +248,7 @@ export const fixAllZeroNetSalaryPayslips = async () => {
       if (success) fixedCount++;
     }
 
+    console.log(`Fixed ${fixedCount} payslips`);
     return { success: true, count: fixedCount };
   } catch (error) {
     console.error('Error fixing zero net salary payslips:', error);
